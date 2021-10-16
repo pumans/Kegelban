@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI; //Text, Image
+using System.Xml.Serialization;
+using System.IO;
 
 public class Controls : MonoBehaviour
 {
@@ -32,6 +34,7 @@ public class Controls : MonoBehaviour
     // Menu
     private GameObject GameMenu;
     public Game game;
+    private const string SAVED_GAME = "game.xml"; 
     
     void Start()
     {
@@ -62,7 +65,9 @@ public class Controls : MonoBehaviour
         ForceIndicator = GameObject.Find("ForseIndicator").GetComponent<Image>();
         Indicator = GameObject.Find("Indicator");
 
-        game = new Game();
+        LoadGame();
+        Debug.Log(game.getScore());
+        Menu.myScore = game.getScore();
     }
 
     // Update is called once per frame
@@ -86,11 +91,12 @@ public class Controls : MonoBehaviour
             ballRigidbody.velocity = Vector3.zero;
             ballRigidbody.angularVelocity = Vector3.zero;
             // собираем информацию о кеглях
-
+            int broke = 0;
             foreach(GameObject kegel in GameObject.FindGameObjectsWithTag("Kegel"))
             {
-                Debug.Log(kegel.transform.position);
+                //Debug.Log(kegel.transform.position);
                 //
+                
                 if (kegel.transform.position.y > 0.2 || Mathf.Abs(kegel.transform.rotation.x) > 0.01 
                     || Mathf.Abs(kegel.transform.rotation.z) > 0.01 )
                 {
@@ -99,21 +105,24 @@ public class Controls : MonoBehaviour
                     leftKegelsCount--;
                     leftKegels.text = leftKegelsCount.ToString();
                     hitKegels.text = (10 - leftKegelsCount).ToString();
+                    broke++;
                 }
             }
-            game.makeAttempt(10 - leftKegelsCount);
+            //Debug.Log(leftKegelsCount);
+            //Debug.Log(10-leftKegelsCount);
+            game.makeAttempt(broke);
+            
             if(leftKegelsCount == 0 || makeThrowCount == 2)
             {
-                //SceneManager.LoadScene("SampleScene");
-                foreach (GameObject kegel in GameObject.FindGameObjectsWithTag("Kegel"))
+                // сохраняем в xml документ
+                using (StreamWriter writer = new StreamWriter(SAVED_GAME))
                 {
-                    for(int i = 1; i < 11; i++)
-                    {
-                        //kegel.transform.position.Set()
-                    }
-                    //kegel.transform.position.Set()
+                    XmlSerializer serializer = new XmlSerializer(
+                        game.GetType());
+                    serializer.Serialize(writer, game);
                 }
-                    if (game.isGameOver())
+                SceneManager.LoadScene("SampleScene");                
+                if (game.isGameOver())
                 {
                     Menu.MenuMode = MenuMode.GameOver; 
                 } else
@@ -121,7 +130,6 @@ public class Controls : MonoBehaviour
                     Menu.MenuMode = MenuMode.Next;
                 }
                 Menu.myScore = game.getScore();
-                Debug.Log( game.getScore().ToString() );
                 GameMenu.SetActive(false);
                 Menu.MenuMode = MenuMode.Next;
                 Menu.IsActive = false;
@@ -212,14 +220,32 @@ public class Controls : MonoBehaviour
         GameMenu.SetActive(false);
         Menu.IsActive = false;
     }
+    public void LoadGame()
+    {
+        if (File.Exists(SAVED_GAME))
+        {
+            using (StreamReader reader = new StreamReader(SAVED_GAME))
+            {
+                XmlSerializer serializer = new XmlSerializer( typeof(Game) );
+                game = (Game)serializer.Deserialize(reader);
+            }
+            //Debug.Log(game.getScore().ToString()); 
+        }
+        else
+        {
+            game = new Game();
+        }
+        
+    }
 }
 
 
 public class Game
 {
     private int Score;
-    private List<Frame> game ;
-    private int FrameCounter;
+    [SerializeField]
+    public List<Frame> game ;
+    public int FrameCounter;
     private int AttemptCounter;
     private Frame frame;
     public Game()
@@ -245,6 +271,7 @@ public class Game
         {
             Score += (frame.attempt1 + frame.attempt2 + frame.attempt3);
         }
+        Debug.Log(Score);
         return Score;
     }
     public void makeAttempt(int score)
@@ -276,6 +303,8 @@ public class Game
             default:
                 break;
         }
+        Debug.Log(game[FrameCounter - 1].attempt1);
+        Debug.Log(game[FrameCounter - 1].attempt2);
         Counter(score);                     // увеличиваем счетчик
         // увеличение счета в предыдущих фреймах, если там был страйк или спаре
         if (FrameCounter > 1)                // если сыграно больше 1-го фрейма
